@@ -1,5 +1,6 @@
-import Data.List
-import Data.Map hiding (map, foldr)
+import Data.List as L
+import Data.Map as M
+import Data.Set as S
 
 data Rank = R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10 | J | Q | K | A
             deriving (Bounded, Enum, Eq, Ord)
@@ -79,14 +80,14 @@ sameSuits h = let ((Card _ s):cs) = unHand h
 isStraight :: [Rank] -> Maybe Rank 
 isStraight rs = if all (\(x,y) -> succ x == y ) $ zip (sort rs) (tail (sort rs))
                  then Just (last (sort rs))
-                 else let rs' = map (\x -> if x == A then R1 else x) rs in (if all (\(x,y) -> succ x == y ) $ zip (sort rs') (tail (sort rs'))
+                 else let rs' = L.map (\x -> if x == A then R1 else x) rs in (if all (\(x,y) -> succ x == y ) $ zip (sort rs') (tail (sort rs'))
                       then Just (last (sort rs'))
                       else Nothing)
 
 
 -- converts a Hand into a list of Ranks, ordered from high to low.
 ranks :: Hand -> [Rank]
-ranks h = (sort (map (\(Card r s) -> r) (unHand h)))
+ranks h = (sort (L.map (\(Card r s) -> r) (unHand h)))
 
 
 -- converts a Hand into a list of Ranks paired with their multiplicity, order from high to low using a lexicographical ordering. 
@@ -103,7 +104,7 @@ f (Card r _) xs = alter (\x -> case x of
                                       Just (n, r) -> Just (n+1, r))  r xs
 
 order :: Hand -> [(Int, Rank)]
-order h = elems (foldr f empty (unHand h))
+order h = M.elems (L.foldr f M.empty (unHand h))
 
 
 -- converts a Hand into a HandCategory.
@@ -126,4 +127,27 @@ instance Eq Hand where
   (==) h1 h2 = (==) (handCategory h1) (handCategory h2)
   
 instance Ord Hand where
-  compare h1 h2 = compare (handCategory h1) (handCategory h2)                   
+  compare h1 h2 = compare (handCategory h1) (handCategory h2)  
+
+
+
+combs :: Int -> [a] -> [[a]]
+combs _ [] = []
+combs 0 _ = []
+combs 1 x = L.map (:[]) x
+combs n (x:xs) = (L.map (x:) (combs (n-1) xs) ) ++ combs n xs   
+
+
+-- returns all combinations of 5-card hands than can be taken from a given deck of cards
+allHands :: Deck -> [Hand]   
+allHands deck = L.map (\cs -> Hand cs) (combs 5 deck)       
+
+
+
+
+-- constructs a maximal set of distinct hands from deck. 
+-- Hints: You will need the 'empty' and 'insert' functions from Data.Set. 
+-- Use foldl’ instead of foldr to avoid a stack overflow when applying this function to large decks 
+
+distinctHands :: Deck -> Set Hand  
+distinctHands deck = S.foldl (flip S.insert) S.empty (S.fromList (allHands deck))                 
