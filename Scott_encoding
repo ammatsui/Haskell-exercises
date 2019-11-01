@@ -1,0 +1,104 @@
+{-# LANGUAGE ScopedTypeVariables, Rank2Types #-}
+module ScottEncoding where
+
+import Prelude hiding (null, length, map, foldl, foldr, take, fst, snd, curry, uncurry, concat, zip, (++))
+
+newtype SPair   a b = SPair   { runPair   :: forall c. (a -> b -> c) -> c }
+newtype SMaybe  a   = SMaybe  { runMaybe  :: forall b. b -> (a -> b) -> b }
+newtype SEither a b = SEither { runEither :: forall c. (a -> c) -> (b -> c) -> c }
+newtype SList   a   = SList   { runList   :: forall b. b -> (a -> SList a -> b) -> b }
+
+-- newtype SPair a b = SPair { runPair :: forall c. (a -> b -> c) -> c }
+toPair :: SPair a b -> (a,b)
+toPair sp = runPair sp (,) -- (fst sp, snd sp)
+
+fromPair :: (a,b) -> SPair a b
+fromPair (a, b) = SPair (\p -> p a b)
+
+fst :: SPair a b -> a
+fst (SPair p) = p (\a _ -> a)
+
+snd :: SPair a b -> b
+snd (SPair p) = p (\_ b -> b)
+
+swap :: SPair a b -> SPair b a
+swap = fromPair . (\(a, b) -> (b, a)) . toPair
+
+curry :: (SPair a b -> c) -> (a -> b -> c)
+curry f = (\a -> (\b -> f (SPair (\p -> p a b) ) ) ) --curry f a b = f (fromPair (a, b))
+
+uncurry :: (a -> b -> c) -> (SPair a b -> c)
+uncurry f p = runPair p f
+
+----------------------------------------------
+-- newtype SMaybe a = SMaybe { runMaybe :: forall b. b -> (a -> b) -> b }
+toMaybe :: SMaybe a -> Maybe a
+toMaybe (SMaybe m) = m Nothing Just
+
+fromMaybe :: Maybe a -> SMaybe a
+fromMaybe Nothing  = SMaybe (\x _ -> x)
+fromMaybe (Just a) = SMaybe (\_ f -> f a)
+
+isJust :: SMaybe a -> Bool
+isJust (SMaybe m) = m False (\x -> True)
+
+isNothing :: SMaybe a -> Bool
+isNothing (SMaybe m) = m True (\x -> False)
+
+catMaybes :: SList (SMaybe a) -> SList a
+catMaybes = error "catMaybes"
+
+----------------------------------------------
+-- newtype SEither a b = SEither { runEither :: forall c. (a -> c) -> (b -> c) -> c }
+toEither :: SEither a b -> Either a b
+toEither (SEither e) = e Left Right
+
+fromEither :: Either a b -> SEither a b
+fromEither (Left l)  = SEither (\f _ -> f l)
+fromEither (Right r) = SEither (\_ g -> g r)
+
+isLeft :: SEither a b -> Bool
+isLeft (SEither e) = e (\x -> True) (\x -> False)
+
+isRight :: SEither a b -> Bool
+isRight (SEither e) = e (\x -> False) (\x -> True)
+
+partition :: SList (SEither a b) -> SPair (SList a) (SList b)
+partition = error "partition"
+
+----------------------------------------------
+-- newtype SList a = SList { runList :: forall b. b -> (a -> SList a -> b) -> b }
+toList :: SList a -> [a]
+toList sl = runList sl [] (\a sl -> a : (toList sl))
+
+fromList :: [a] -> SList a
+fromList []     = SList (\ x _ -> x)
+fromList (a:as) = cons a (fromList as)
+
+cons :: a -> SList a -> SList a
+cons a l = SList (\ _ f -> f a l) 
+
+-- like append
+concat :: SList a -> SList a -> SList a
+concat (SList a) sb = a sb $ (\ x as -> cons x (concat as sb))
+
+null :: SList a -> Bool
+null (SList l) = l True (\x -> (\x -> False))
+
+length :: SList a -> Int
+length (SList l) = l 0 (\ _ x -> 1 + length x)
+
+map :: (a -> b) -> SList a -> SList b
+map f (SList a) = error "map"
+
+zip :: SList a -> SList b -> SList (SPair a b)
+zip = error "zip"
+
+foldl :: (b -> a -> b) -> b -> SList a -> b
+foldl = error "foldl"
+
+foldr :: (a -> b -> b) -> b -> SList a -> b
+foldr = error "foldr"
+
+take :: Int -> SList a -> SList a
+take = error "take"
