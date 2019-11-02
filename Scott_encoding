@@ -46,7 +46,7 @@ isNothing :: SMaybe a -> Bool
 isNothing (SMaybe m) = m True (\x -> False)
 
 catMaybes :: SList (SMaybe a) -> SList a
-catMaybes = error "catMaybes"
+catMaybes = foldr (\ (SMaybe ma) sla -> (ma sla) $ \a -> cons a sla) ( SList (\ x _ -> x) )
 
 ----------------------------------------------
 -- newtype SEither a b = SEither { runEither :: forall c. (a -> c) -> (b -> c) -> c }
@@ -64,7 +64,8 @@ isRight :: SEither a b -> Bool
 isRight (SEither e) = e (\x -> False) (\x -> True)
 
 partition :: SList (SEither a b) -> SPair (SList a) (SList b)
-partition = error "partition"
+partition = foldr (\ (SEither e) (SPair p) -> SPair $ \f -> p (\ sla slb -> e (\a -> f (cons a sla) slb ) (\b -> f sla (cons b slb) )) ) (SPair (\t -> t (SList const) (SList const)))
+--                       (a     ->    b     ->          b)                                                                                      -> b                      -> (SList a)
 
 ----------------------------------------------
 -- newtype SList a = SList { runList :: forall b. b -> (a -> SList a -> b) -> b }
@@ -83,22 +84,33 @@ concat :: SList a -> SList a -> SList a
 concat (SList a) sb = a sb $ (\ x as -> cons x (concat as sb))
 
 null :: SList a -> Bool
-null (SList l) = l True (\x -> (\x -> False))
+null (SList l) = l True (\ _ _ -> False)
 
 length :: SList a -> Int
 length (SList l) = l 0 (\ _ x -> 1 + length x)
 
+-- (a -> b) 'map' (SList { runList :: forall c. c -> (a -> SList a -> c) -> c })
+-- SList { runList :: forall c. c -> (b -> SList b -> c) -> c }
 map :: (a -> b) -> SList a -> SList b
-map f (SList a) = error "map"
+map f (SList as) = SList $ \ c y -> (as c) (\ a sla -> y (f a) (map f sla) )
 
 zip :: SList a -> SList b -> SList (SPair a b)
-zip = error "zip"
+zip (SList sa) (SList sb) = SList $ \ c p -> (sa c) (\ a sla -> (sb c) (\ b slb -> p (SPair (\x -> x a b)) (zip sla slb)) )
+-- need to introduce a b  somehow here                                 now can make a pair out of them 
+-- p :: SPair a b -> SList (SPair a b) -> c, we need to apply p to SPair a b and SList (SPair a b) (which is recursively called zip)
 
 foldl :: (b -> a -> b) -> b -> SList a -> b
-foldl = error "foldl"
+foldl f b (SList sa) = (sa b) $ \ a sla -> foldl f (f b a) sla
 
 foldr :: (a -> b -> b) -> b -> SList a -> b
-foldr = error "foldr"
+foldr f b (SList sa) = (sa b) $ \ a sla -> f a (foldr f b sla) 
 
 take :: Int -> SList a -> SList a
-take = error "take"
+take n (SList sa) 
+        | n <= 0    = SList (\ x _ -> x) -- we take nothing from list, so the result is an empty slist
+        | otherwise = (sa (SList sa)) $ \ a sla -> cons a (take (n-1) sla)
+-- before a sla hole with type
+-- (a0 -> SList a0 -> SList a0) -> SList a
+-- which is as if sa was applied to some SList 
+-- sa :: forall b. b -> (a -> SList a -> b) -> b
+        
