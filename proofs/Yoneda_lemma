@@ -1,5 +1,4 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
-import YonedaLemmaPreloaded
 import Data.Functor
 
 -- Hom(a, b) ≡ all arrows/morphisms from object `a` to object `b`
