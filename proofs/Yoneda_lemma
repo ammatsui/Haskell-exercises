@@ -1,0 +1,38 @@
+{-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
+import YonedaLemmaPreloaded
+import Data.Functor
+
+-- Hom(a, b) ≡ all arrows/morphisms from object `a` to object `b`
+-- in given category.
+-- Hom(a, -) covariant functor:
+type Hom a = (->) a
+
+-- natural transformation from functor f to functor g:
+type Nat f g = forall x. f x -> g x
+
+-- in order to witness isomorphism
+-- we should provide `to` and `from` such, that
+-- to . from ≡ id[f a]
+-- from . to ≡ id[Nat (Hom a) f]
+
+to :: Functor f => Nat (Hom a) f -> f a
+to nat = nat id
+
+from :: Functor f => f a -> Nat (Hom a) f
+from fa = \ad -> fmap ad fa 
+
+-------------------------------------------------
+
+Op a b = Op { getOp :: b -> a }
+
+class Contravariant f where
+  contramap :: (b -> a) -> f a -> f b
+
+-- Hom(-, a) contravariant functor
+type CoHom a = Op a
+
+to' :: Contravariant f => Nat (CoHom a) f -> f a
+to' natOp = natOp (Op id)
+
+from' :: Contravariant f => f a -> Nat (CoHom a) f
+from' fp = \da -> contramap (getOp da) fp
