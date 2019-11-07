@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FunctionalDependencies, FlexibleInstances, TypeFamilies #-}
 
 module PolyvariadicFunctions where
 
@@ -30,7 +30,16 @@ instance PolyList a r => PolyList a (a -> r) where
 polyList :: (PolyList a r) => r
 polyList = mkPolyList []
 
- 
--- `polyWords` turns its arguments into a spaced string.
--- polyWords "hello" "world" --> "hello world" 
-polyWords = error "TODO: polyList"
+
+class PolyWords r where
+  mkPolyWords :: Int -> String -> r   -- need int to not make spaces at the beginning of the sentence
+  
+instance PolyWords String where
+  mkPolyWords _ str = str  -- ignore the int
+
+instance PolyWords r => PolyWords (String -> r) where
+  mkPolyWords pos xs ys = mkPolyWords (pos + 1) (if pos == 0 then ys else (xs ++ " " ++ ys))
+
+
+polyWords :: (PolyWords r) => r
+polyWords = mkPolyWords 0 ""
