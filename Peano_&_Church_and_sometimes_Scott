@@ -5,6 +5,8 @@
   ScopedTypeVariables,
   RankNTypes #-}
 
+
+
 import Data.List
 
 type ISO a b = (a -> b, b -> a)
@@ -21,12 +23,7 @@ substR = snd
 liftISO2 :: ISO a b -> ISO (a -> a -> a) (b -> b -> b)
 liftISO2 (ab, ba) = (\aaa b b' -> ab (aaa (ba b) (ba b')), \bbb a a' -> ba (bbb (ab a) (ab a')) )
 
--- A Natural Number is either Zero,
--- or a Successor (1 +) of Natural Number.
--- We have (+)/(*) on Natural Number, or (-) it.
--- Since Natrual Number do not have negative, forall x, 0 - x = 0.
--- We also have pow on Natrual Number
--- Since Haskell is lazy, we also have infinity
+
 
 class Nat n where
   zero :: n
@@ -34,15 +31,16 @@ class Nat n where
   nat :: a -> (n -> a) -> n -> a  -- Pattern Matching
   iter :: a -> (a -> a) -> n -> a -- Induction
   plus, minus, mult, pow :: n -> n -> n
-  
-  inf :: n
+ 
+ -- laziness is cool, can have infinity
+  inf :: n 
   inf = successor inf
   
   divide :: n -> n -> n
   l `divide` r | l == 0 && r == 0 = undefined
   l `divide` r | l < r = 0
   l `divide` r | otherwise = successor $ (l `minus` r) `divide` r
-  -- notice (l `divide` 0) when l is not 0 will return inf
+ 
   
   isoP :: ISO n Peano 
   isoP = (iter zero successor, iter zero successor)
@@ -68,84 +66,113 @@ instance {-# OVERLAPPABLE #-} Nat n => Num n where
   (*) = mult
   (-) = minus
 
--- Can encode Natrual Number directly as Algebraic Data Type(ADT).
+-- We can encode Natrual Number directly as Algebraic Data Type(ADT).data Peano = O | S Peano deriving (Show, Eq, Ord)
 data Peano = O | S Peano deriving (Show, Eq, Ord)
 
--- Define 0 - x = 0 for all x.
+--  0 - x = 0 for all x.
 instance Nat Peano where
-  zero = O
+  zero        = O
   successor p = S p
   
-  plus O a = a
+  plus O     a = a
   plus (S p) a = S (plus p a)
   
-  minus a O = a
-  minus O a = O  -- so that we stay in the naturals
+  minus a      O    = a
+  minus O      a    = O  -- so that we stay in naturals
   minus (S a) (S p) = (minus a p)
   
-  mult O a = O
+  mult O     a = O
   mult (S p) a = plus a (mult p a)
   
-  pow a O = (S O)
+  pow a O     = (S O)
   pow a (S p) = mult a (pow a p)
   
   nat a na n = case n of
                O     -> a
                (S k) -> na k
                
-  iter a aa n = case  n of
+  iter a aa n = case n of
                 O     -> a
                 (S k) -> aa (iter a aa k)
 
 -- Peano is very similar to a basic data type in Haskell - List!
 -- O is like [], and S is like : (except it lacks the head part)
 -- When we want to store no information, we can use (), an empty tuple
--- This is different from storing nothing (called Void in Haskell),
--- as we can create a value of () by using (), 
--- but we cannot create a value of Void.
+
 
 instance Nat [()] where
-  zero = []
+  zero        = []
   successor x = ():x
   
---  plus
---  minus
---  mult 
---  pow
-  
---  nat a na n 
-  
---  iter a aa n 
-  
+  nat a na n = case n of
+               []   -> a
+               ():x -> na x
+               
+  iter a aa n = case n of
+                []   -> a
+                ():x -> aa (iter a aa x)
 
--- Instead of defining Nat from zero, sucessor Nat (and get Peano),
--- We can define it from Pattern Matching
+  plus ns ms = ns ++ ms -- or similarly to Nat Peano
+  
+  minus [] ns           = []
+  minus ns []           = ns
+  minus (():ns) (():ms) = minus ns ms
+  
+  mult []      ns = []
+  mult (():ms) ns = plus ns (mult ms ns)
+  
+  pow ns []      = ():[]
+  pow ns (():ms) = mult ns (pow ns ms)
+  
+  -- OR
+--  zero = []
+--  successor = (():)
+--  nat z _ [] = z
+--  nat _ s (_:n) = s n
+--  iter z f = foldl (\a _ -> f a) z
+--  plus = (++)
+--  minus = (\\)
+--  mult = (>>)
+--  l `pow` r = foldl mult 1 (map (const l) r)
+
+-- pattern matching
 newtype Scott = Scott { runScott :: forall a. a -> (Scott -> a) -> a }
+
 instance Nat Scott where
   zero = Scott const -- (\a _ -> a)
   successor a = Scott (\_ sa -> sa a)
   
- -- nat 
+  nat a sa (Scott f) = f a sa
+  
+  iter a aa (Scott f) = f a (\s -> iter (aa a) aa s)
  
- -- iter
- 
-  plus = substR (liftISO2 isoP) plus
+  plus  = substR (liftISO2 isoP) plus
   minus = substR (liftISO2 isoP) minus
-  mult = substR (liftISO2 isoP) mult
-  pow = substR (liftISO2 isoP) pow
+  mult  = substR (liftISO2 isoP) mult
+  pow   = substR (liftISO2 isoP) pow
 
--- Or from induction!
+-- induction
 newtype Church = Church { runChurch :: forall a. (a -> a) -> a -> a }
+
 instance Nat Church where
-  zero = Church const
-  successor a = Church (\aa _ -> aa a)
+  zero                 = Church (\aa a -> a)
+  successor (Church f) = Church (\aa a -> aa (f aa a))
+
+--  nat z f (Church x) = maybe z f $ x (Just . maybe zero successor) Nothing
+  nat a ca c = nat a (ca . substR isoP) $ toP c
   
-  -- nat
-  -- iter
+  iter a aa (Church f) = f aa a
   
- 
-  -- Implement the calculation (except minus) in the primitive way.
-  -- Implement them by constructing Church explicitly.
-  -- So plus should not use successor,
-  -- mult should not use plus,
-  -- pow should not use mult.
+  minus = substR (liftISO2 isoP) minus
+  
+  plus (Church f) (Church g) = Church $ \aa a -> f aa (g aa a)
+  
+  mult (Church f) (Church g) = Church $ \aa   -> f (g aa) 
+  
+  pow (Church f) (Church g) = Church $ g f
+
+-- OR  
+--  Church l `plus` Church r = Church (\f x -> l f $ r f x)
+--  Church l `mult` Church r = Church (\f -> l $ r f)
+--  Church l `pow` Church r = Church $ r l
+--  l `minus` (Church r) = r (nat 0 id) l
