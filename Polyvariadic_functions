@@ -1,0 +1,36 @@
+{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeFamilies #-}
+
+module PolyvariadicFunctions where
+
+  
+class PolyAdd r where
+  mkPolyAdd :: Int -> r
+  
+instance PolyAdd Int where
+  mkPolyAdd = id
+  
+instance (a ~ Int, PolyAdd r) => PolyAdd (a -> r) where
+  mkPolyAdd x y = mkPolyAdd (x + y)
+
+-- `polyAdd` sums its arguments, all `Int`s.
+polyAdd :: (PolyAdd r) => r 
+polyAdd = mkPolyAdd 0 
+
+
+class PolyList a r | r -> a where
+  mkPolyList :: [a] -> r
+  
+instance PolyList a [a] where
+  mkPolyList = id
+
+instance PolyList a r => PolyList a (a -> r) where
+  mkPolyList xs y = mkPolyList (xs ++ [y])
+   
+-- `polyList` turns its arguments into a list, polymorphically.
+polyList :: (PolyList a r) => r
+polyList = mkPolyList []
+
+ 
+-- `polyWords` turns its arguments into a spaced string.
+-- polyWords "hello" "world" --> "hello world" 
+polyWords = error "TODO: polyList"
