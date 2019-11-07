@@ -43,3 +43,35 @@ instance PolyWords r => PolyWords (String -> r) where
 
 polyWords :: (PolyWords r) => r
 polyWords = mkPolyWords 0 ""
+
+
+
+
+-- OR
+
+
+{-# LANGUAGE FlexibleInstances,
+             FlexibleContexts,
+             UndecidableInstances,
+             FunctionalDependencies,
+             TypeFamilies #-}
+
+module PolyvariadicFunctions where
+
+class Variadic a r t | t -> r where
+  liftVariadic :: ([a] -> r) -> t
+
+instance Variadic a r r where
+  liftVariadic f = f []
+
+instance (a ~ a', Variadic a r t) => Variadic a r (a' -> t) where
+  liftVariadic f h = liftVariadic (f . (h:))
+
+polyAdd :: Variadic Int Int t => t
+polyAdd = liftVariadic (sum :: [Int] -> Int)
+
+polyWords :: Variadic String String t => t
+polyWords = liftVariadic unwords
+
+polyList :: Variadic a [a] t => t
+polyList = liftVariadic id
