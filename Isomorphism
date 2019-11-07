@@ -1,0 +1,86 @@
+import Data.Void
+
+type ISO a b = (a -> b, b -> a)
+
+-- given ISO a b, we can go from a to b
+substL :: ISO a b -> (a -> b)
+substL = fst
+
+-- and vice versa
+substR :: ISO a b -> (b -> a)
+substR = snd
+
+-- There can be more than one ISO a b
+isoBool :: ISO Bool Bool
+isoBool = (id, id)
+
+isoBoolNot :: ISO Bool Bool
+isoBoolNot = (not, not)
+
+-- isomorphism is reflexive
+refl :: ISO a a
+refl = (id, id)
+
+-- isomorphism is symmetric
+symm :: ISO a b -> ISO b a
+symm iso = (substR iso, substL iso)
+
+-- isomorphism is transitive
+trans :: ISO a b -> ISO b c -> ISO a c
+trans (ab, ba) (bc, cb) = (bc.ab, ba.cb)
+
+-- We can combine isomorphism:
+isoTuple :: ISO a b -> ISO c d -> ISO (a, c) (b, d)  
+isoTuple (ab, ba) (cd, dc) = (\(a, c) -> (ab a, cd c), \(b, d) -> (ba b, dc d))
+
+isoList :: ISO a b -> ISO [a] [b]
+isoList (ab, ba) = (\as -> map ab as, \bs -> map ba bs)
+
+isoMaybe :: ISO a b -> ISO (Maybe a) (Maybe b)
+isoMaybe (ab, ba) = (f, g) where f m = case m of
+                                       Nothing -> Nothing
+                                       Just a  -> Just (ab a)
+                                 g m = case m of
+                                       Nothing -> Nothing
+                                       Just b  -> Just (ba b)
+
+isoEither :: ISO a b -> ISO c d -> ISO (Either a c) (Either b d)
+isoEither (ab, ba) (cd, dc) = (f, g) where f e = case e of
+                                                 Right c -> Right (cd c)
+                                                 Left  a -> Left  (ab a)
+                                           g e = case e of
+                                                 Right d -> Right (dc d)
+                                                 Left  b -> Left  (ba b)
+
+isoFunc :: ISO a b -> ISO c d -> ISO (a -> c) (b -> d)
+isoFunc (ab, ba) (cd, dc) = ( (\ac -> cd.ac.ba), (\bd -> dc.bd.ab) )
+
+
+isoUnMaybe :: ISO (Maybe a) (Maybe b) -> ISO a b
+isoUnMaybe (mab, mba) = (f, g) where f a = case mab (Just a) of
+                                           Just b -> b
+                                           Nothing -> case mab Nothing of
+                                                      Nothing -> error "impossible"
+                                                      Just b -> b
+                                     g b = case mba (Just b) of
+                                           Just a -> a
+                                           Nothing -> case mba Nothing of
+                                                      Nothing -> error "impossible"
+                                                      Just a -> a
+ 
+ 
+ 
+isoEU :: ISO (Either [()] ()) (Either [()] Void)
+isoEU = (f, g) where 
+    f  (Left     l)  = Left  (():l)
+    f  (Right    _)  = Left  []
+    g (Left    [])  = Right ()
+    g (Left (_:l))  = Left  l
+    g (Right    v)  = absurd v 
+
+
+isoSymm :: ISO (ISO a b) (ISO b a)
+isoSymm  = (\iso -> symm iso, \iso -> symm iso)
+
+ad :: ISO ((a, b) -> c) (a -> (b -> c))
+ad = (\f -> f.fst, \g -> (\(a, b) -> (g a) b) )
