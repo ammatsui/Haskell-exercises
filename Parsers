@@ -1,0 +1,110 @@
+module ApplicativeParser where
+
+import Data.Char
+import Prelude hiding (fmap)
+
+-- | An ambiguous parser.
+newtype Parser a = P { unP :: String -> [(String, a)] }
+
+-- | Change the result of a parser.
+pmap :: (a -> b) -> Parser a -> Parser b
+pmap f p = P $ \str -> map (\(s, a) -> (s, f a)) ((unP p) str)
+
+-- | Operator version of 'pmap'.
+(<#>) :: (a -> b) -> Parser a -> Parser b
+(<#>) = pmap
+
+-- | Parse a value and replace it.
+(<#) :: a -> Parser b -> Parser a
+(<#) a = pmap (const a) 
+
+infixl 4 <#>
+infixl 4 <#
+
+-- | Parse a character only when a predicate matches.
+predP :: (Char -> Bool) -> Parser Char
+predP p = P $ \str -> case str of
+                      []   -> []
+                      x:xs -> [(xs, x) | p x]
+
+-- | Succeed only when parsing the given character.
+charP :: Char -> Parser Char
+charP c = predP (\a -> a == c)
+
+-- | Inject a value into an identity parser.
+inject :: a -> Parser a
+inject x = P (\xs -> [(xs, x)])
+
+-- Given a parser with a function value and another parser, parse the function
+-- first and then the value, return a parser which applies the function to the
+-- value.
+(<@>) :: Parser (a -> b) -> Parser a -> Parser b
+pf <@> px = P $ \str -> case unP pf str of
+                        [] -> []
+                        [(s, f)] -> unP (pmap f px) s
+
+(<@) :: Parser a -> Parser b -> Parser a
+pa <@ pb = const <#> pa <@> pb
+
+(@>) :: Parser a -> Parser b -> Parser b
+pa @> pb = (\a b -> b) <#> pa <@> pb
+
+infixl 4 <@
+infixl 4 @>
+infixl 4 <@>
+
+-- Parse a whole string.
+stringP :: String -> Parser String
+stringP = foldr (\c ps -> (:) <#> charP c <@> ps) $ inject ""
+
+-- Construct a parser that never parses anything.
+emptyP :: Parser a
+emptyP = P $ const []
+
+-- Combine two parsers: When given an input, provide the results of both parser run on the input.
+(<<>>) :: Parser a -> Parser a -> Parser a
+(<<>>) p1 p2 = P $ \str -> ((unP p1) str) ++ ((unP p2) str)   
+
+infixl 3 <<>>
+
+-- Apply the parser zero or more times.
+many :: Parser a -> Parser [a]
+many p = error "many not yet implemented"
+
+-- Apply the parser one or more times.
+some :: Parser a -> Parser [a]
+some p = error "some not yet implemented"
+
+
+-- Apply a parser and return all ambiguous results, but only those where the input was fully consumed.
+runParser :: Parser a -> String -> [a]
+runParser p cs = error "runParser not yet implemented"
+
+-- Apply a parser and only return a result, if there was only one unambiguous result with output fully consumed.
+runParserUnique :: Parser a -> String -> Maybe a
+runParserUnique p cs = error "runParserUnique not yet implemented"
+
+-- Kinds of binary operators.
+data BinOp = AddBO | MulBO deriving (Eq, Show)
+
+-- Some kind of arithmetic expression.
+data Expr = ConstE Int
+          | BinOpE BinOp Expr Expr
+          | NegE Expr
+          | ZeroE
+          deriving (Eq, Show)
+
+evalExpr :: Expr -> Int
+evalExpr e = error "evalExpr not yet implemented"
+
+-- Parse arithmetic expressions, with the following grammar:
+--
+--     expr         ::= const | binOpExpr | neg | zero
+--     const        ::= int
+--     binOpExpr    ::= '(' expr ' ' binOp ' ' expr ')'
+--     binOp        ::= '+' | '*'
+--     neg          ::= '-' expr
+--     zero         ::= 'z'
+-- 
+parseExpr :: String -> Maybe Expr
+parseExpr = error "parseExpr not yet implemented"
