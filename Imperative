@@ -1,0 +1,66 @@
+
+module Imperative (
+  def, var, lit, while, (+=), (-=), (*=)
+) where
+
+
+import Control.Monad
+
+newtype State s a = State {runState :: s -> (a, s)}
+
+instance Functor (State s) where
+  fmap = liftM
+
+instance Applicative (State s) where
+  pure = return
+  mf <*> mx = do f <- mf; x <- mx; return (f x)
+
+instance Monad (State s) where
+  return a        = State $ \s -> (a,s)
+  (State f) >>= h = State $ \s -> let (a,s') = (f s) in (runState (h a) s')
+
+
+put newState = State $ \s -> ((),newState)
+
+
+newtype Var a = Var (State () a) 
+
+instance Functor Var where
+  fmap = liftM
+
+instance Applicative Var where
+  pure = return
+  mf <*> mx = do f <- mf; x <- mx; return (f x)
+  
+
+rename :: Var b -> State () b
+rename (Var b) = b
+
+instance Monad Var where
+  return a              = Var (State $ \s -> (a,s))
+  (Var (State f)) >>= h = Var $ State $ \s -> let (a,s') = (f s) in (runState (rename (h a)) s')
+
+def :: State () Integer -> Integer
+def (State f) = fst (f ())     
+
+var :: Integer -> State () (Var Integer) 
+var v = State $ \() -> (lit v, ())
+
+lit :: Integer -> Var Integer
+lit l = Var $ State $ \s -> (l, s)
+
+while :: Var a -> (a -> Bool) -> State () () -> State () ()
+while r cond act = do
+               a <- rename r
+               if cond a 
+                       then act >> while r cond act
+               else return ()
+
+
+
+op :: (Integer -> Integer -> Integer) -> Var Integer -> Var Integer -> State () Integer
+op f (Var (State a)) (Var (State b)) = State $ \() -> (f (fst (a ())) (fst (b ())), () )   
+
+(+=) = op (+)
+(-=) = op (-)
+(*=) = op (*)
