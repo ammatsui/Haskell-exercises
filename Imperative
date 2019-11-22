@@ -1,52 +1,105 @@
+-- https://stackoverflow.com/questions/58999272/make-haskell-imperative?noredirect=1#comment104251310_58999272
 
 module Imperative (
   def, var, lit, while, (+=), (-=), (*=)
 ) where
 
+import Control.Monad.State
 
+type LitOrVar = (Either Int Integer)
+type VarMonad = State [Integer] LitOrVar
+
+def :: VarMonad -> Integer
+def r = val (snd final) (fst final)
+  where final = runState r []
+
+var :: Integer -> VarMonad
+var v = do
+  values <- get
+  put (values++[v])
+  return $ Left (length values)
+  
+lit l = Right l
+
+while :: LitOrVar -> (Integer -> Bool) -> VarMonad -> VarMonad
+while r f act = do
+  values <- get
+  if f (val values r) then do act; while r f act; else return r
+
+(+=) = comb (+)
+(-=) = comb (-)
+(*=) = comb (*)
+
+val values (Left index) = values !! index
+val _ (Right value) = value
+
+comb :: (Integer -> Integer -> Integer) ->
+        LitOrVar -> 
+        LitOrVar -> 
+        VarMonad
+comb op a b = do
+  values <- get;
+  let result = op (val values a) (val values b)
+      (Left ia) = a
+    in do
+    put ((take ia values)++[result]++(drop (ia+1) values))
+    return a
+    
+    
+    
+    
+----------------------------------------------------------------------
+
+
+
+import Data.Maybe
+import qualified Data.Sequence as S
+import Control.Applicative
+import Control.Monad.State
 import Control.Monad
 
+newtype Var = Var { getIndex :: Int }
 
--- for some reason I failed to import the State monad, so here it is
-newtype State s a = State {runState :: s -> (a, s)}
+-- State monad using a sequence as a lookup table for the value of variables
+type Imperative a = State (S.Seq Integer) a
 
-instance Functor (State s) where
-  fmap = liftM
+class Value a where
+    getValue :: a -> Imperative Integer
 
-instance Applicative (State s) where
-  pure = return
-  mf <*> mx = do f <- mf; x <- mx; return (f x)
+instance Value Var where
+    getValue = gets . flip S.index . getIndex 
 
-instance Monad (State s) where
-  return a        = State $ \s -> (a,s)
-  (State f) >>= h = State $ \s -> let (a,s') = (f s) in (runState (h a) s')
+-- For literal values
+instance Value Integer where
+    getValue = return
+
+var :: Integer -> Imperative Var
+var n = gets (Var . S.length) <* modify (S.|> n) 
+
+lit :: Integer -> Integer
+lit = id
+    
+def :: Value a => Imperative a -> Integer
+def procedure = evalState (procedure >>= getValue) S.empty  
+
+while :: Var -> (Integer -> Bool) -> Imperative () -> Imperative ()
+while v pred act = do
+    bool <- pred <$> getValue v
+    when bool (act >> while v pred act)
+
+mut :: Value a => (Integer -> Integer -> Integer) -> Var -> a -> Imperative ()
+mut op v val = do
+    intVal <- getValue val
+    modify $ S.adjust (`op` intVal) (getIndex v) 
+
+(+=) :: Value a => Var -> a -> Imperative () 
+(+=) = mut (+) 
+
+(-=) :: Value a => Var -> a -> Imperative ()
+(-=) = mut (-)
+
+(*=) :: Value a => Var -> a -> Imperative ()
+(*=) = mut (*)
 
 
-
-
-data Lit a = Lit a
-type Variable a = State Integer a
-
-
-def :: Variable (Lit a) -> a
-def (State f) = fromLit $ fst $ f 0
-
-lit :: a -> Lit a
-lit l = lit l
-
-var :: a -> Variable (Lit a)
-var v = State $ \x -> (lit v, x)
-
-while :: Lit a -> (a -> Bool) -> Variable () -> Variable ()
-while (Lit r) cond act = do
-                 if cond r 
-                       then act >> while (Lit r) cond act
-                 else return ()
-
-op :: (Integer -> Integer -> Integer) -> Lit Integer -> Lit Integer -> Variable ()
-op f (Lit a) (Lit b) = State $ \ _ -> ((), f a b)
-
-(+=) = op (+)
-(-=) = op (-)
-(*=) = op (*)
-
+---------------------------------------
