@@ -1,0 +1,39 @@
+module Postfix where
+
+begin f       = f []
+push s n f    = f (n:s)
+add (x:y:s) f = f (x+y : s)
+end xs        = head xs
+
+
+------------------------------
+{-# LANGUAGE FlexibleInstances, TypeFamilies #-}
+
+module Postfix where
+ 
+data Push = Push
+data Add  = Add
+data End  = End
+
+class Post a where
+  post :: [Int] -> a
+ 
+
+-- the result is the top element of the stack
+instance (b ~ Int) => Post (End -> b) where
+  post stack _ = head stack
+ 
+ -- adds together the 2 top elements of the stack
+ -- now they are the top element of the stack
+instance (Post a) => Post (Add -> a) where
+  post (n:m:stack) _ = post $ (n + m) : stack
+  
+instance (Post a, b ~ Int) => Post (Push -> b -> a) where
+  post stack _ n = post $ n : stack
+  
+
+begin :: Post a => a
+begin = post []
+push  = Push
+add   = Add
+end   = End
