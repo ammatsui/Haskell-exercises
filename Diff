@@ -1,0 +1,62 @@
+module SymbolicDifferentiationOfPrefixExpressions (diff) where
+
+import Data.Char
+import Prelude hiding (fmap)
+
+
+data Expr = Const Int
+          | Add Expr Expr
+          | Mul Expr Expr
+          | Div Expr Expr
+          | Pow Expr Int
+          | Cos Expr
+          | Sin Expr
+          | Tan Expr
+          | Exp Expr
+          | Ln  Expr
+          | Neg Expr
+          deriving (Eq, Show)
+
+
+
+diffExpr :: Expr -> Expr
+diffExpr (Const a) = Const 0
+diffExpr (Neg e) = Neg (diffExpr e)
+diffExpr (Add e1 e2) = Add (diffExpr e1) (diffExpr e2)
+diffExpr (Mul e1 e2) = Add (Mul (diffExpr e1) e2) (Mul e2 (diffExpr e1))
+diffExpr (Div e1 e2) = Div (Add (Mul (diffExpr e1) e2) (Mul (Neg e2) (diffExpr e1))) (Pow e2 (Const 2))
+diffExpr (Pow e1 a) = Mul (Mul (Const a) (Pow e1 (a-1))) (diffExpr e1)
+diffExpr (Cos e) = Mul (Neg (Sin e)) (diffExpr e)
+diffExpr (Sin e) = Mul (Cos e) (diffExpr e)
+diffExpr (Tan e) = diffExpr $ Div (Sin e) (Cos e)
+diffExpr (Exp e) = Mul (Exp e) (diffExpr e)
+diffExpr (Ln e) = Div (diffExpr e) e
+
+
+-- need to make different cases for (x + 0 = x), (x*1 = x), (x^1 = x), (x^0 = 1)
+-- also probably another function simp :: expr -> expr for cases such as (x*(1-1)) must reduce to 1
+
+evalExpr :: Expr -> String
+evalExpr (Const a) = show a
+evalExpr (Neg e) = "( - " ++(evalExpr e)) ++ " )"
+evalExpr (Add e1 e2) = case e1 of 
+                         (Const a) -> case e2 of (Const b) -> "( + " ++ show (a+b) ++ " )"
+                        otherwise  -> "( + " ++ (evalExpr e1) ++ (evalExpr e2) ++ " )"
+evalExpr (Mul e1 e2) = case e1 of 
+                         (Const a) -> case e2 of (Const b) -> "( + " ++ show (a*b) ++ " )"
+                        otherwise  -> "( * " ++ (evalExpr e1) ++ (evalExpr e2) ++ " )"
+evalExpr (Div e1 e2) = case e1 of 
+                         (Const a) -> case e2 of (Const b) -> "( + " ++ show (a/b) ++ " )"
+                        otherwise  -> "( / " ++ (evalExpr e1) ++ (evalExpr e2) ++ " )"
+evalExpr (Pow e1 a) = case e1 of 
+                         (Const a) -> "( + " ++ show (a^b) ++ " )"
+                        otherwise  -> "( ^ " ++ (evalExpr e1) ++ " )"
+evalExpr (Cos e) = "( cos " ++(evalExpr e)) ++ " )"
+evalExpr (Sin e) = "( sin " ++(evalExpr e)) ++ " )"
+evalExpr (Tan e) = "( tan " ++(evalExpr e)) ++ " )"
+evalExpr (Exp e) = "( exp " ++(evalExpr e)) ++ " )"
+evalExpr (Ln e) = "( ln " ++(evalExpr e)) ++ " )"
+
+
+diff :: String -> String
+diff = undefined
